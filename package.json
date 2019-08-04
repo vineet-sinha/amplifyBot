@@ -1,0 +1,12 @@
+{
+  "name": "amplifybot",
+  "version": "0.0.1",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@slack/bolt": "^1.2.0",
+    "twitter": "^1.7.1"
+  }
+}
