@@ -1,10 +1,12 @@
 # AmplifyBot
 
-This is a Slack bot that monitors for posts in a channel and will tweet them from a channel. This bot was created by [Vineet Sinh](https://github.com/vineet-sinha). Each user get's one tweet per day.
+This is a Slack bot that monitors for posts in a channel and will tweet them from a channel. This bot was created by [Vineet Sinha](https://github.com/vineet-sinha). By default each user get's one tweet per day.
 
 ## User Usage
-Create a tweet starting with the twitter emoji and type your message for example:
+Create a message and include the twitter emoji in it, for example:
     `:twitter: Hey friends, checkout Vineet's new project! http://twitter.com/some/post`
+
+The twitter emoji (`:twitter`) is removed when the message is posted to the twitter service.
 
 ## Configuration 
 
@@ -22,6 +24,8 @@ TWITTER_ACCESS_TOKEN_KEY
 TWITTER_ACCESS_TOKEN_SECRET
 ```
 
+The service runs by defualt on port 3000. To change this, set the `PORT` environment variable.
+
 #### Slack
 
 You will need to create an app for development purposes to test with. It's best to create your own slack workspace for testing.
@@ -38,6 +42,7 @@ You will need to create an app for development purposes to test with. It's best 
     - message.mpim
 - Save Changes
 - Head back to "Basic Information" and reinstall your app under the "Install your app to your workspace" dropdown
+- Go to the channel that you want to use and make sure to add the bot as an app into the channel.
 
 #### Usage
 
