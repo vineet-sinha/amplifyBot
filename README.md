@@ -4,9 +4,10 @@ This is a Slack bot that monitors for posts in a channel and will tweet them fro
 
 ## User Usage
 Create a message and include the twitter emoji in it, for example:
+
     `:twitter: Hey friends, checkout Vineet's new project! http://twitter.com/some/post`
 
-The twitter emoji (`:twitter`) is removed when the message is posted to the twitter service.
+The twitter emoji (`:twitter:`) is removed when the message is posted to the twitter service.
 
 ## Configuration 
 
