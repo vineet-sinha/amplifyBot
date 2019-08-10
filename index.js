@@ -12,7 +12,7 @@ var twitterClient = new twitter({
 // All receive params:{context, body, payload, event, message, say, next}
 // And need to return params if the pipeline is to continue
 
-const filterChannelJoins = function(params) {
+const filterChannelJoins = await function(params) {
   if (params.message.subtype && params.message.subtype === 'channel_join') return;
   return params;
 }
@@ -31,12 +31,12 @@ const checkUserPostLimits = function(validDelay) {
   return checkSpecifiedUserPostLimits;
 }
 
-const printDbg = function(params) {
+const printDbg = await function(params) {
   console.log('Debug - message:', params.message);
   return params;
 }
 
-const letUserKnow = function(params) {
+const letUserKnow = await function(params) {
   let msgToTweet = params.message.text;
   msgToTweet = msgToTweet.replace(/:twitter:/,'')
 
@@ -45,18 +45,12 @@ const letUserKnow = function(params) {
   return params;
 }
 
-// NOTE: this function returns immediately (i.e. it is not promise aware, but that should be fine in this situation)
-const tweet = function(params) {
+const tweet = async await function(params) {
   let msgToTweet = params.message.text;
   msgToTweet = msgToTweet.replace(/:twitter:/,'')
 
-  twitterClient.post('statuses/update', {status: msgToTweet})
-    .then(function (tweet) {
-      console.log('Tweeted: ', msgToTweet);
-    })
-    .catch(function (error) {
-      throw error;
-    });
+  let tweetRet = await twitterClient.post('statuses/update', {status: msgToTweet});
+  console.log(`Tweeted: ${msgToTweet} - Received: `, tweetRet);
 
   return params;
 }
@@ -77,12 +71,12 @@ const messageProcessingPipeline = [
 ];
 
 
-app.message((params) => {
+app.message(async (params) => {
 
   console.log('==> Received message notification');
   for (let processor of messageProcessingPipeline) {
     console.log(`==> Processing with processor: ${processor.name}`)
-    params = processor(params);
+    params = await processor(params);
     if (!params) return;
   }
 
