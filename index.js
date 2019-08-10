@@ -1,7 +1,9 @@
 const { App } = require('@slack/bolt');
 const twitter = require('twitter');
 
-var twitterClient = new twitter({
+const msgTxtForTweeting = ':twitter:'
+
+const twitterClient = new twitter({
   consumer_key: process.env.TWITTER_CONSUMER_KEY,
   consumer_secret: process.env.TWITTER_CONSUMER_SECRET,
   access_token_key: process.env.TWITTER_ACCESS_TOKEN_KEY,
@@ -12,8 +14,13 @@ var twitterClient = new twitter({
 // All receive params:{context, body, payload, event, message, say, next}
 // And need to return params if the pipeline is to continue
 
-const filterChannelJoins = await function(params) {
+const filterChannelJoins = async function(params) {
   if (params.message.subtype && params.message.subtype === 'channel_join') return;
+  return params;
+}
+
+const filterNeedsTweeting = async function(params) {
+  if (!params.message.text || !params.message.text.match(new RegExp(msgTxtForTweeting))) return;
   return params;
 }
 
@@ -31,23 +38,23 @@ const checkUserPostLimits = function(validDelay) {
   return checkSpecifiedUserPostLimits;
 }
 
-const printDbg = await function(params) {
+const printDbg = async function(params) {
   console.log('Debug - message:', params.message);
   return params;
 }
 
-const letUserKnow = await function(params) {
+const letUserKnow = async function(params) {
   let msgToTweet = params.message.text;
-  msgToTweet = msgToTweet.replace(/:twitter:/,'')
+  msgToTweet = msgToTweet.replace(new RegExp(msgTxtForTweeting, 'g'),'')
 
-  params.say(`Hey there <@${params.message.user}>! - I will tweet ${msgToTweet}`);
+  params.say(`Hey there <@${params.message.user}>! - I will tweet: ${msgToTweet}`);
 
   return params;
 }
 
-const tweet = async await function(params) {
+const tweet = async function(params) {
   let msgToTweet = params.message.text;
-  msgToTweet = msgToTweet.replace(/:twitter:/,'')
+  msgToTweet = msgToTweet.replace(new RegExp(msgTxtForTweeting, 'g'),'')
 
   let tweetRet = await twitterClient.post('statuses/update', {status: msgToTweet});
   console.log(`Tweeted: ${msgToTweet} - Received: `, tweetRet);
@@ -64,6 +71,7 @@ const app = new App({
 
 const messageProcessingPipeline = [
   filterChannelJoins,
+  filterNeedsTweeting,
   checkUserPostLimits(1000 * 60 * 1), // 1 min
   printDbg,
   letUserKnow,
@@ -77,8 +85,12 @@ app.message(async (params) => {
   for (let processor of messageProcessingPipeline) {
     console.log(`==> Processing with processor: ${processor.name}`)
     params = await processor(params);
-    if (!params) return;
+    if (!params) {
+      console.log(`<== Finished processing`)
+      return;
+    }
   }
+  console.log(`<== Finished processing`)
 
 });
 
