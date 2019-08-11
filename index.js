@@ -61,6 +61,18 @@ const tweet = function(params) {
   return params;
 }
 
+// checkPrefix validates that the message we want to tweet starts with :twitter:
+const checkPrefix = function(params) {
+  let msgToTweet = params.message.text;
+
+  if (!msgToTweet.startsWith(":twitter:")) {
+    console.log(`Message does not start with :tweet:, ignoring`);
+    return;
+  }
+
+  return params;
+}
+
 // Initialize app
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
@@ -70,6 +82,7 @@ const app = new App({
 
 const messageProcessingPipeline = [
   filterChannelJoins,
+  checkPrefix,
   checkUserPostLimits(1000 * 60 * 1), // 1 min
   printDbg,
   letUserKnow,
