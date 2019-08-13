@@ -19,11 +19,6 @@ const filterChannelJoins = async function(params) {
   return params;
 }
 
-const filterNeedsTweeting = async function(params) {
-  if (!params.message.text || !params.message.text.match(new RegExp(msgTxtForTweeting))) return;
-  return params;
-}
-
 var lastPosted = {}; // TODO: ideally move to a db
 const checkUserPostLimits = function(validDelay) {
   let checkSpecifiedUserPostLimits = function(params) {
@@ -62,6 +57,18 @@ const tweet = async function(params) {
   return params;
 }
 
+// checkPrefix validates that the message we want to tweet starts with :twitter:
+const checkPrefix = function(params) {
+  let msgToTweet = params.message.text;
+
+  if (!msgToTweet.match(new RegExp(msgTxtForTweeting))) {
+    console.log(`Message does not include ${msgTxtForTweeting}, ignoring`);
+    return;
+  }
+
+  return params;
+}
+
 // Initialize app
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
@@ -71,7 +78,7 @@ const app = new App({
 
 const messageProcessingPipeline = [
   filterChannelJoins,
-  filterNeedsTweeting,
+  checkPrefix,
   checkUserPostLimits(1000 * 60 * 1), // 1 min
   printDbg,
   letUserKnow,
