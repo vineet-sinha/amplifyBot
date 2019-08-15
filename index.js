@@ -75,6 +75,7 @@ const queueTweetWithExpiry = function(expiryInMinutes = 15) {
 
 const checkTweetExpiry = async function(params) {
   let now = new Date();
+  let userId = params.message.user;
   let postExpiry = postCache[userId] && postCache[userId].expiry;
     if (postExpiry) {
       if (now > postExpiry) return;
@@ -124,16 +125,16 @@ const app = new App({
   signingSecret: process.env.SLACK_SIGNING_SECRET
 });
 
-const processPipe = async function(params, pipe) {
+const processPipe = async function(pipeName, pipe, params) {
   for (let processor of pipe) {
-    console.log(`==> Processing with processor: ${processor.name}`)
+    console.log(`==> [${pipeName}] Processing with processor: ${processor.name}`)
     params = await processor(params);
     if (!params) {
-      console.log(`<== Finished processing`)
+      console.log(`<== [${pipeName}] Finished processing`)
       return;
     }
   }
-  console.log(`<== Finished processing`)
+  console.log(`<== [${pipeName}] Finished processing`)
 }
 
 const queuePipeline = [
@@ -161,10 +162,10 @@ app.message(async (params) => {
 
   let msgToTweet = params.message.text;
   if (msgToTweet.startsWith(msgTxtForTweeting)) {
-    await processPipe(queuePipeline);
+    await processPipe('queue', queuePipeline, params);
   }
   if (msgToTweet.startsWith("yes")) {
-    await processPipe(sendPipeline);
+    await processPipe('send', sendPipeline, params);
   }
 
 
