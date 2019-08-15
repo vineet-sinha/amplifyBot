@@ -1,6 +1,8 @@
 const { App } = require('@slack/bolt');
 const twitter = require('twitter');
 
+const msgTxtForTweeting = ':twitter:'
+
 var twitterClient = new twitter({
   consumer_key: process.env.TWITTER_CONSUMER_KEY,
   consumer_secret: process.env.TWITTER_CONSUMER_SECRET,
@@ -12,14 +14,14 @@ var twitterClient = new twitter({
 // All receive params:{context, body, payload, event, message, say, next}
 // And need to return params if the pipeline is to continue
 
-const filterChannelJoins = function(params) {
+const filterChannelJoins = async function(params) {
   if (params.message.subtype && params.message.subtype === 'channel_join') return;
   return params;
 }
 
 var postCache = {}; // TODO: ideally move to a db
 const checkUserPostLimits = function(validDelay) {
-  let checkSpecifiedUserPostLimits = function(params) {
+  let checkSpecifiedUserPostLimits = async function(params) {
     let userId = params.message.user;
     let now = new Date();
     let lastPost = postCache[userId] && postCache[userId].lastPostTime;
@@ -31,34 +33,34 @@ const checkUserPostLimits = function(validDelay) {
   return checkSpecifiedUserPostLimits;
 }
 
-const printDbg = function(params) {
+const printDbg = async function(params) {
   console.log('Debug - message:', params.message);
   return params;
 }
 
-const notifyOfQueuedTweet = function(params) {
+const notifyOfQueuedTweet = async function(params) {
   let msgToTweet = params.message.text;
-  msgToTweet = msgToTweet.replace(/:twitter:/,'')
+  msgToTweet = msgToTweet.replace(new RegExp(msgTxtForTweeting, 'g'),'')
 
   params.say(`Hey there <@${params.message.user}>! - Your tweet has been queued, please say "yes" to tweet. Your tweet is: ${msgToTweet}`);
 
   return params;
 }
 
-const notifyOfTweet = function(params) {
+const notifyOfTweet = async function(params) {
   let msgToTweet = params.message.text;
-  msgToTweet = msgToTweet.replace(/:twitter:/,'')
+  msgToTweet = msgToTweet.replace(new RegExp(msgTxtForTweeting, 'g'),'')
 
   params.say(`Hey there <@${params.message.user}>! - Your tweet is being sent! Your tweet is: ${msgToTweet}`);
 
   return params;
 }
 
-// QueueTweetWithExpiry will add the tweet and content to a cache which expires after a finite amount of time (default 15 minutes). 
+// QueueTweetWithExpiry will add the tweet and content to a cache which expires after a finite amount of time (default 15 minutes).
 const queueTweetWithExpiry = function(expiryInMinutes = 15) {
-  let queueTweet = function(params) {
+  let queueTweet = async function(params) {
     let msgToTweet = params.message.text;
-    msgToTweet = msgToTweet.replace(/:twitter:/,'')
+    msgToTweet = msgToTweet.replace(new RegExp(msgTxtForTweeting, 'g'),'')
     let userId = params.message.user;
     postCache[userId] = {
       "content": msgToTweet,
@@ -71,7 +73,7 @@ const queueTweetWithExpiry = function(expiryInMinutes = 15) {
   return queueTweet;
 }
 
-const checkTweetExpiry = function(params) {
+const checkTweetExpiry = async function(params) {
   let now = new Date();
   let postExpiry = postCache[userId] && postCache[userId].expiry;
     if (postExpiry) {
@@ -82,17 +84,12 @@ const checkTweetExpiry = function(params) {
 }
 
 // NOTE: this function returns immediately (i.e. it is not promise aware, but that should be fine in this situation)
-const tweet = function(params) {
+const tweet = async function(params) {
   let userId = params.message.user;
   msgToTweet = postCache[userId].content;
 
-  twitterClient.post('statuses/update', {status: msgToTweet})
-    .then(function (tweet) {
-      console.log('Tweeted: ', msgToTweet);
-    })
-    .catch(function (error) {
-      throw error;
-    });
+  let tweetRet = await twitterClient.post('statuses/update', {status: msgToTweet});
+  console.log(`Tweeted: ${msgToTweet} - Received: `, tweetRet);
 
   postCache[userId].sent = true;
   return params;
@@ -100,21 +97,21 @@ const tweet = function(params) {
 
 // checkPrefix validates that the message we want to tweet starts with :twitter:
 const checkSpecificPrefix = function(prefix) {
-  const checkPrefix = function(params) {
+  const checkPrefix = async function(params) {
     let msgToTweet = params.message.text;
-  
+
     if (!msgToTweet.startsWith(prefix)) {
       console.log(`Message does not start with ${prefix}, ignoring`);
       return;
     }
-  
+
     return params;
   };
 
   return checkPrefix;
 }
 
-const checkUserHasQueuedTweet = function(params) {
+const checkUserHasQueuedTweet = async function(params) {
   let userId = params.message.user;
   if (!postCache[userId] || postCache[userId] && postCache[userId].sent) return;
 
@@ -127,17 +124,21 @@ const app = new App({
   signingSecret: process.env.SLACK_SIGNING_SECRET
 });
 
-const processPipe = function(params, pipe) {
+const processPipe = async function(params, pipe) {
   for (let processor of pipe) {
     console.log(`==> Processing with processor: ${processor.name}`)
-    params = processor(params);
-    if (!params) return;
+    params = await processor(params);
+    if (!params) {
+      console.log(`<== Finished processing`)
+      return;
+    }
   }
+  console.log(`<== Finished processing`)
 }
 
 const queuePipeline = [
   filterChannelJoins,
-  checkSpecificPrefix(":twitter:"),
+  checkSpecificPrefix(msgTxtForTweeting),
   checkUserPostLimits(1000 * 60 * 1), // 1 min
   printDbg,
   notifyOfQueuedTweet,
@@ -154,18 +155,18 @@ const sendPipeline = [
   tweet
 ]
 
-app.message((params) => {
+app.message(async (params) => {
 
   console.log('==> Received message notification');
 
   let msgToTweet = params.message.text;
-  if (msgToTweet.startsWith(":twitter:")) {
-    processPipe(queuePipeline);
+  if (msgToTweet.startsWith(msgTxtForTweeting)) {
+    await processPipe(queuePipeline);
   }
   if (msgToTweet.startsWith("yes")) {
-    processPipe(sendPipeline);
+    await processPipe(sendPipeline);
   }
-  
+
 
 });
 
