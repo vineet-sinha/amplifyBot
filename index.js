@@ -10,6 +10,8 @@ var twitterClient = new twitter({
   access_token_secret: process.env.TWITTER_ACCESS_TOKEN_SECRET
 });
 
+var debugMode = process.env.DEBUG_MODE || false; // disables posting to twitter and only dumps to console
+
 // Pipeline methods
 // All receive params:{context, body, payload, event, message, say, next}
 // And need to return params if the pipeline is to continue
@@ -89,7 +91,12 @@ const tweet = async function(params) {
   let userId = params.message.user;
   msgToTweet = postCache[userId].content;
 
-  let tweetRet = await twitterClient.post('statuses/update', {status: msgToTweet});
+  let tweetRet;
+  if (!debugMode) {
+    tweetRet = await twitterClient.post('statuses/update', {status: msgToTweet});
+  } else {
+    tweetRet = { status: 'DEBUG_MODE: did not really send' };
+  }
   console.log(`Tweeted: ${msgToTweet} - Received: `, tweetRet);
 
   postCache[userId].sent = true;
