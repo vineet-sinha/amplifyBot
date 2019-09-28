@@ -21,7 +21,7 @@ const filterChannelJoins = async function(params) {
   return params;
 }
 
-var postCache = {}; // TODO: ideally move to a db
+// var postCache = {}; // TODO: ideally move to a db
 const checkUserPostLimits = function(validDelay) {
   let checkSpecifiedUserPostLimits = async function(params) {
     let userId = params.message.user;
@@ -40,14 +40,14 @@ const printDbg = async function(params) {
   return params;
 }
 
-const notifyOfQueuedTweet = async function(params) {
-  let msgToTweet = params.message.text;
-  msgToTweet = msgToTweet.replace(new RegExp(msgTxtForTweeting, 'g'),'')
-
-  params.say(`Hey there <@${params.message.user}>! - Your tweet has been queued, please say "yes" to tweet. Your tweet is: ${msgToTweet}`);
-
-  return params;
-}
+// const notifyOfQueuedTweet = async function(params) {
+//   let msgToTweet = params.message.text;
+//   msgToTweet = msgToTweet.replace(new RegExp(msgTxtForTweeting, 'g'),'')
+//
+//   params.say(`Hey there <@${params.message.user}>! - Your tweet has been queued, please say "yes" to tweet. Your tweet is: ${msgToTweet}`);
+//
+//   return params;
+// }
 
 const notifyOfTweet = async function(params) {
   let msgToTweet = params.message.text;
@@ -58,35 +58,34 @@ const notifyOfTweet = async function(params) {
   return params;
 }
 
-// QueueTweetWithExpiry will add the tweet and content to a cache which expires after a finite amount of time (default 15 minutes).
-const queueTweetWithExpiry = function(expiryInMinutes = 15) {
-  let queueTweet = async function(params) {
-    let msgToTweet = params.message.text;
-    msgToTweet = msgToTweet.replace(new RegExp(msgTxtForTweeting, 'g'),'')
-    let userId = params.message.user;
-    postCache[userId] = {
-      "content": msgToTweet,
-      "lastPostTime": new Date(),
-      "expiry": new Date(new Date().getTime() + expiryInMinutes*60000)
-    }
-    return params;
-  };
+// // QueueTweetWithExpiry will add the tweet and content to a cache which expires after a finite amount of time (default 15 minutes).
+// const queueTweetWithExpiry = function(expiryInMinutes = 15) {
+//   let queueTweet = async function(params) {
+//     let msgToTweet = params.message.text;
+//     msgToTweet = msgToTweet.replace(new RegExp(msgTxtForTweeting, 'g'),'')
+//     let userId = params.message.user;
+//     postCache[userId] = {
+//       "content": msgToTweet,
+//       "lastPostTime": new Date(),
+//       "expiry": new Date(new Date().getTime() + expiryInMinutes*60000)
+//     }
+//     return params;
+//   };
+//
+//   return queueTweet;
+// }
 
-  return queueTweet;
-}
+// const checkTweetExpiry = async function(params) {
+//   let now = new Date();
+//   let userId = params.message.user;
+//   let postExpiry = postCache[userId] && postCache[userId].expiry;
+//     if (postExpiry) {
+//       if (now > postExpiry) return;
+//     }
+//
+//     return params;
+// }
 
-const checkTweetExpiry = async function(params) {
-  let now = new Date();
-  let userId = params.message.user;
-  let postExpiry = postCache[userId] && postCache[userId].expiry;
-    if (postExpiry) {
-      if (now > postExpiry) return;
-    }
-
-    return params;
-}
-
-// NOTE: this function returns immediately (i.e. it is not promise aware, but that should be fine in this situation)
 const tweet = async function(params) {
   let userId = params.message.user;
   msgToTweet = postCache[userId].content;
@@ -119,12 +118,12 @@ const checkSpecificPrefix = function(prefix) {
   return checkPrefix;
 }
 
-const checkUserHasQueuedTweet = async function(params) {
-  let userId = params.message.user;
-  if (!postCache[userId] || postCache[userId] && postCache[userId].sent) return;
-
-  return params;
-}
+// const checkUserHasQueuedTweet = async function(params) {
+//   let userId = params.message.user;
+//   if (!postCache[userId] || postCache[userId] && postCache[userId].sent) return;
+//
+//   return params;
+// }
 
 // Initialize app
 const app = new App({
@@ -149,31 +148,31 @@ const queuePipeline = [
   checkSpecificPrefix(msgTxtForTweeting),
   checkUserPostLimits(1000 * 60 * 1), // 1 min
   printDbg,
-  notifyOfQueuedTweet,
-  queueTweetWithExpiry(15)
+  // notifyOfQueuedTweet,
+  // queueTweetWithExpiry(15)
 ];
 
 
-const sendPipeline = [
-  filterChannelJoins,
-  checkSpecificPrefix("yes"),
-  checkUserHasQueuedTweet,
-  checkTweetExpiry,
-  notifyOfTweet,
-  tweet
-]
+// const sendPipeline = [
+//   filterChannelJoins,
+//   checkSpecificPrefix("yes"),
+//   checkUserHasQueuedTweet,
+//   checkTweetExpiry,
+//   notifyOfTweet,
+//   tweet
+// ]
 
 app.message(async (params) => {
 
   console.log('==> Received message notification');
 
   let msgToTweet = params.message.text;
-  if (msgToTweet.startsWith(msgTxtForTweeting)) {
+  // if (msgToTweet.startsWith(msgTxtForTweeting)) {
     await processPipe('queue', queuePipeline, params);
-  }
-  if (msgToTweet.startsWith("yes")) {
-    await processPipe('send', sendPipeline, params);
-  }
+  // }
+  // if (msgToTweet.startsWith("yes")) {
+  //   await processPipe('send', sendPipeline, params);
+  // }
 
 
 });
