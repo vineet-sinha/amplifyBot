@@ -36,7 +36,7 @@ var debugMode = process.env.DEBUG_MODE || false;
 
 
 // Pipeline methods
-// And need to return params if the pipeline is to continue
+// - need to return params if the pipeline is to continue
 
 
 // Message Pipeline
@@ -59,11 +59,6 @@ const checkUserPostLimits = function(validDelay) {
     return params;
   }
   return checkSpecifiedUserPostLimits;
-}
-
-const printDbg = async function(params) {
-  console.log('Debug - message:', params.message);
-  return params;
 }
 
 const confirmMsgForTweet = async function(params) {
@@ -133,16 +128,6 @@ const queueTweetWithExpiry = function(expiryInMS = 1000 * 60 * 15) {
 //     return params;
 // }
 
-const tweet = async function(msgToTweet) {
-  let tweetRet;
-  if (!debugMode) {
-    tweetRet = await twitterClient.post('statuses/update', {status: msgToTweet});
-  } else {
-    tweetRet = { status: 'DEBUG_MODE: did not really send' };
-  }
-  console.log(`Tweeted: ${msgToTweet} - Received: `, tweetRet);
-}
-
 // checkPrefix validates that the message we want to tweet starts with :twitter:
 const checkSpecificPrefix = function(prefix) {
   const checkPrefix = async function(params) {
@@ -186,6 +171,67 @@ const processPipe = async function(pipeName, pipe, params) {
   console.log(`<== [${pipeName}] Finished processing`)
 }
 
+
+// Message Pipeline
+// All receive params:{context, body, payload, action, respond, ack, say, next}
+
+const checkForConfirmation = async function(params) {
+  if (params.action.value === 'no') {
+    await slackPostEphemeral(params.body.container.channel_id, params.body.user.id, 'Sounds good :+1:. I will ignore that.');
+    return;
+  }
+  return params;
+}
+
+const checkForMessagesQueuedFromUser = async function(params) {
+  let userId = params.body.user.id;
+  if (!postCache[userId]) {
+    await slackPostEphemeral(params.body.container.channel_id, params.body.user.id, 'Sorry :-(, could not find messages from you!');
+    return;
+  }
+  return params;
+}
+
+const checkConfirmationOnLatestMessage = async function(params) {
+  let userId = params.body.user.id;
+  let postInfo = postCache[userId];
+  let msgId = params.action.action_id.split('_')[1];
+  if (postInfo.id !== msgId) {
+    await slackPostEphemeral(params.body.container.channel_id, params.body.user.id, 'Received confirmation on old message - ignoring');
+    return;
+  }
+  return params;
+}
+
+const tweet = async function(params) {
+  let msgId = params.action.action_id.split('_')[1];
+  let userId = params.body.user.id;
+  let postInfo = postCache[userId];
+
+  await slackPostEphemeral(params.body.container.channel_id, params.body.user.id, `Going ahead and tweeting: ${postInfo.content}`);
+
+  let tweetRet;
+  if (!debugMode) {
+    tweetRet = await twitterClient.post('statuses/update', {status: postInfo.content});
+  } else {
+    tweetRet = { status: 'DEBUG_MODE: did not really send' };
+  }
+  console.log(`Tweeted: ${postInfo.content} - Received: `, tweetRet);
+
+  delete postCache.userId;
+  return params;
+}
+
+// Generic Pipeline
+
+const printDbg = async function(params) {
+  if (params.message) console.log('Debug - message:', params.message);
+  if (params.action) console.log('Debug - action:', params.action);
+  return params;
+}
+
+// Hook up the pipelines
+
 const messagePipeline = [
   filterChannelJoins,
   checkSpecificPrefix(msgTxtForTweeting),
@@ -195,36 +241,22 @@ const messagePipeline = [
   printDbg
 ];
 
-
 app.message(async (params) => {
   await processPipe('message', messagePipeline, params);
 });
 
+
+const tweetConfirmationPipeline = [
+  printDbg,
+  checkForConfirmation,
+  checkForMessagesQueuedFromUser,
+  checkConfirmationOnLatestMessage,
+  tweet
+];
+
 app.action(/tweetConfirmation.*/, async (params) => {
   params.ack();
-
-  if (params.action.value === 'no') return;
-
-  // console.log(Object.keys(params));
-  // console.log('action: ', params.action);
-  // console.log('body: ', params.body);
-  // console.log('container: ', params.body.container);
-
-  let msgId = params.action.action_id.split('_')[1];
-  let userId = params.body.user.id;
-  let postInfo = postCache[userId];
-  if (postInfo) {
-    if (postInfo.id === msgId) {
-      await slackPostEphemeral(params.body.container.channel_id, params.body.user.id, `Going ahead and tweeting: ${postInfo.content}`);
-      await tweet(postInfo.content);
-      delete postCache.userId;
-    } else {
-      await slackPostEphemeral(params.body.container.channel_id, params.body.user.id, 'Received confirmation on old message - ignoring');
-    }
-  } else {
-    await slackPostEphemeral(params.body.container.channel_id, params.body.user.id, 'Sorry, could not find messages from you!');
-  }
-
+  await processPipe('tweetConfirmation', tweetConfirmationPipeline, params);
 });
 
 // Start the app
