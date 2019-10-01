@@ -141,6 +141,11 @@ const checkSpecificPrefix = function(prefix) {
       return params;
     }
 
+    if (!msgToTweet) {
+      console.log(`Message not found ignoring - message.type: ${params.message.subtype}`);
+      return;
+    }
+
     if (!msgToTweet.startsWith(prefix)) {
       console.log(`Message does not start with ${prefix}, ignoring`);
       return;
